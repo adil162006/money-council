@@ -1,3 +1,28 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --primary-yellow: #F5C518;
+    --primary-yellow-dark: #D4A80E;
+    --primary-yellow-light: #FDF3C0;
+    --primary-yellow-pale: #FFFBEA;
+
+    --neutral-900: #1C1A14;
+    --neutral-700: #3D3A30;
+    --neutral-500: #7A7668;
+    --neutral-300: #C8C4B8;
+    --neutral-100: #F5F3EE;
+    --white: #FFFFFF;
+
+    --semantic-success: #2E7D52;
+    --semantic-success-bg: #E8F5EE;
+    --semantic-danger: #C0392B;
+    --semantic-danger-bg: #FDECEA;
+    --semantic-warning: #E67E22;
+    --semantic-warning-bg: #FEF3E7;
+    --semantic-info: #2980B9;
+    --semantic-info-bg: #EAF4FB;
+  }
+}

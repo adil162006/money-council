@@ -1,9 +1,21 @@
-import { Text, View, StyleSheet } from "react-native";
-import "../../global.css"
+import React from "react";
+import { Redirect } from "expo-router";
+import { useAuthStore } from "../store/authStore";
+
 export default function Index() {
-  return (
-    <View className="flex-1 items-center justify-center bg-white">
-      <Text className="text-xl font-bold text-blue-500">Edit src/app/index.tsx to edit this screen.</Text>
-    </View>
-  );
+  const token = useAuthStore(state => state.token);
+  const isProfileCompleted = useAuthStore(state => state.isProfileCompleted);
+
+  if (!token) {
+    // No active session -> Show Auth Stack (starts at welcome)
+    return <Redirect href="/auth/welcome" />;
+  }
+
+  if (!isProfileCompleted) {
+    // Authenticated but profile is not completed -> Onboarding Stack
+    return <Redirect href="/onboarding/complete-profile" />;
+  }
+
+  // Authenticated + Onboarded -> App Home (bottom tabs)
+  return <Redirect href="/(tabs)/dashboard" />;
 }
