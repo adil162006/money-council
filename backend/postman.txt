@@ -1,0 +1,432 @@
+================================================================
+  POSTMAN TESTING GUIDE
+  Finance App — User & Transaction APIs
+================================================================
+
+BASE URL:  http://localhost:5000
+All protected routes need a Bearer token in the Authorization header.
+
+  Authorization: Bearer <your_jwt_token>
+
+Get a token by logging in / registering through your auth routes first.
+
+================================================================
+  1. USER / PROFILE ROUTES   (mount: /api/profile)
+================================================================
+
+────────────────────────────────────────────────────────────────
+1A.  COMPLETE PROFILE  (one-time, right after registration)
+────────────────────────────────────────────────────────────────
+POST  http://localhost:5000/api/profile/complete
+
+Headers:
+  Content-Type:  application/json
+  Authorization: Bearer <token>
+
+Body (raw JSON):
+{
+  "persona": "Salaried",
+  "monthlyIncome": 75000,
+  "currentBankBalance": 42000,
+  "riskTolerance": "Medium",
+  "salaryDay": 1,
+  "emergencySavings": 5000,
+  "financialGoals": [
+    {
+      "title": "Buy Laptop",
+      "targetAmount": 80000,
+      "currentProgress": 15000,
+      "deadline": "2025-12-31"
+    },
+    {
+      "title": "Emergency Fund (3 months)",
+      "targetAmount": 225000,
+      "currentProgress": 5000
+    }
+  ]
+}
+
+Expected: 201
+{
+  "message": "Profile completed successfully.",
+  "profile": { ... }
+}
+
+Error (already completed): 409
+{
+  "message": "Profile already completed."
+}
+
+
+────────────────────────────────────────────────────────────────
+1B.  GET USER DETAILS
+────────────────────────────────────────────────────────────────
+GET  http://localhost:5000/api/profile
+
+Headers:
+  Authorization: Bearer <token>
+
+No body required.
+
+Expected: 200
+{
+  "user": { "name": "...", "email": "..." },
+  "profile": { "persona": "Salaried", "monthlyIncome": 75000, ... },
+  "liabilities": {
+    "active": [ { "name": "...", "monthsRemaining": 18, ... } ],
+    "completed": []
+  },
+  "summary": {
+    "totalMonthlyEMI": 12000,
+    "disposableIncome": 63000,
+    "totalRemainingDebt": 180000,
+    "emiToIncomeRatio": "16.0%",
+    "emergencySavings": 5000,
+    "highestInterestLiability": {
+      "name": "Credit Card",
+      "interestRate": 42,
+      "remainingBalance": 25000
+    },
+    "totalFinancialGoals": 2,
+    "activeLoansCount": 1
+  }
+}
+
+
+────────────────────────────────────────────────────────────────
+1C.  UPDATE PROFILE
+────────────────────────────────────────────────────────────────
+PATCH  http://localhost:5000/api/profile
+
+Headers:
+  Content-Type:  application/json
+  Authorization: Bearer <token>
+
+Body — send only the fields you want to change:
+
+-- Update income only:
+{
+  "monthlyIncome": 90000
+}
+
+-- Update risk tolerance + salary day:
+{
+  "riskTolerance": "High",
+  "salaryDay": 5
+}
+
+-- Add / replace financial goals:
+{
+  "financialGoals": [
+    {
+      "title": "Trip to Japan",
+      "targetAmount": 120000,
+      "currentProgress": 0,
+      "deadline": "2026-03-01"
+    }
+  ]
+}
+
+-- Update emergency savings:
+{
+  "emergencySavings": 20000
+}
+
+Expected: 200
+{
+  "message": "Profile updated.",
+  "profile": { ... },
+  "disposableIncome": 78000   <- only present when monthlyIncome was changed
+}
+
+
+================================================================
+  2. TRANSACTION ROUTES   (mount: /api/transactions)
+================================================================
+
+────────────────────────────────────────────────────────────────
+2A.  GET TRANSACTIONS BY DATE
+────────────────────────────────────────────────────────────────
+GET  http://localhost:5000/api/transactions
+GET  http://localhost:5000/api/transactions?date=2025-06-15
+
+Headers:
+  Authorization: Bearer <token>
+
+No body required.
+Omitting ?date defaults to TODAY.
+
+Expected (transactions found): 200
+{
+  "date": "2025-06-15",
+  "transactions": [ { "title": "Groceries", "amount": 850, ... } ],
+  "summary": {
+    "totalIncome": 75000,
+    "totalExpense": 3200,
+    "netFlow": 71800
+  }
+}
+
+Expected (no transactions): 200
+{
+  "date": "2025-06-15",
+  "message": "There are no transactions on that day.",
+  "transactions": [],
+  "summary": { "totalIncome": 0, "totalExpense": 0, "netFlow": 0 }
+}
+
+
+────────────────────────────────────────────────────────────────
+2B.  ADD TRANSACTION — Regular Expense
+────────────────────────────────────────────────────────────────
+POST  http://localhost:5000/api/transactions
+
+Headers:
+  Content-Type:  application/json
+  Authorization: Bearer <token>
+
+{
+  "type": "Expense",
+  "title": "Zomato dinner",
+  "amount": 650,
+  "category": "Food",
+  "notes": "Friday night order",
+  "date": "2025-06-20"
+}
+
+Expected: 201
+{
+  "message": "Transaction added successfully.",
+  "transaction": { ... },
+  "currentBankBalance": 41350,
+  "disposableIncome": 63000
+}
+
+
+────────────────────────────────────────────────────────────────
+2C.  ADD TRANSACTION — Manual Salary / Freelance Income
+────────────────────────────────────────────────────────────────
+POST  http://localhost:5000/api/transactions
+
+{
+  "type": "Income",
+  "title": "June Salary",
+  "amount": 75000,
+  "category": "Salary",
+  "date": "2025-06-01"
+}
+
+-- Freelancer logging a client payment:
+{
+  "type": "Income",
+  "title": "Client project — website redesign",
+  "amount": 35000,
+  "category": "Freelance",
+  "notes": "XYZ Corp final milestone",
+  "date": "2025-06-18"
+}
+
+
+────────────────────────────────────────────────────────────────
+2D.  ADD TRANSACTION — EMI payment on an EXISTING liability
+────────────────────────────────────────────────────────────────
+POST  http://localhost:5000/api/transactions
+
+You must pass the liabilityId you got when creating it.
+
+{
+  "type": "Expense",
+  "title": "Phone EMI — June",
+  "amount": 3500,
+  "category": "EMI / Loan",
+  "liabilityId": "665f1a2b3c4d5e6f7a8b9c0d",
+  "date": "2025-06-05"
+}
+
+Expected (still active): 201
+{
+  "message": "Transaction added successfully.",
+  "transaction": { ... },
+  "currentBankBalance": 38500,
+  "disposableIncome": 63000
+}
+
+Expected (final payment — loan fully settled): 201
+{
+  "message": "EMI payment recorded. Liability fully settled.",
+  "transaction": { ... },
+  "currentBankBalance": 35000,
+  "disposableIncome": 66500   <- increases because EMI obligation is gone
+}
+
+
+────────────────────────────────────────────────────────────────
+2E.  ADD TRANSACTION — Create NEW liability + first payment
+────────────────────────────────────────────────────────────────
+POST  http://localhost:5000/api/transactions
+
+Use this when the user is logging a loan / EMI that doesn't exist
+in the system yet. Pass newLiability instead of liabilityId.
+
+-- New phone EMI:
+{
+  "type": "Expense",
+  "title": "Phone EMI — Month 1",
+  "amount": 3500,
+  "category": "EMI / Loan",
+  "newLiability": {
+    "name": "OnePlus 12 EMI",
+    "type": "EMI",
+    "totalPrincipal": 42000,
+    "remainingBalance": 42000,
+    "interestRate": 14,
+    "emiAmount": 3500,
+    "totalMonthsDuration": 12,
+    "dueDate": 5,
+    "minimumMonthlyPayment": 3500,
+    "autoDebit": true
+  }
+}
+
+-- New personal loan:
+{
+  "type": "Expense",
+  "title": "Personal Loan — Month 1",
+  "amount": 8200,
+  "category": "EMI / Loan",
+  "newLiability": {
+    "name": "HDFC Personal Loan",
+    "type": "Loan",
+    "totalPrincipal": 200000,
+    "remainingBalance": 200000,
+    "interestRate": 11.5,
+    "emiAmount": 8200,
+    "totalMonthsDuration": 24,
+    "dueDate": 10,
+    "autoDebit": true
+  }
+}
+
+-- High-interest credit card (Debt Manager will flag this):
+{
+  "type": "Expense",
+  "title": "Credit Card Bill — June",
+  "amount": 5000,
+  "category": "EMI / Loan",
+  "newLiability": {
+    "name": "ICICI Credit Card",
+    "type": "Credit Card",
+    "totalPrincipal": 25000,
+    "remainingBalance": 25000,
+    "interestRate": 42,
+    "emiAmount": 5000,
+    "minimumMonthlyPayment": 1250,
+    "totalMonthsDuration": 5,
+    "dueDate": 15,
+    "autoDebit": false
+  }
+}
+
+-- BNPL (Buy Now Pay Later):
+{
+  "type": "Expense",
+  "title": "Flipkart Pay Later — June",
+  "amount": 2000,
+  "category": "EMI / Loan",
+  "newLiability": {
+    "name": "Flipkart Pay Later",
+    "type": "BNPL",
+    "totalPrincipal": 6000,
+    "remainingBalance": 6000,
+    "interestRate": 0,
+    "emiAmount": 2000,
+    "totalMonthsDuration": 3,
+    "dueDate": 1,
+    "autoDebit": true
+  }
+}
+
+Expected: 201
+{
+  "message": "Liability created and transaction recorded.",
+  "liabilityId": "665f1a2b3c4d5e6f7a8b9c0e",
+  "currentBankBalance": 36500,
+  "disposableIncome": 59500   <- reduced by the new emiAmount
+}
+
+Save the returned liabilityId — use it in request 2D for future payments.
+
+
+────────────────────────────────────────────────────────────────
+2F.  ADD TRANSACTION — Other common categories
+────────────────────────────────────────────────────────────────
+
+-- Investment (SIP):
+{
+  "type": "Expense",
+  "title": "Nifty 50 Index SIP",
+  "amount": 2000,
+  "category": "Investment",
+  "notes": "Automated SIP via Groww"
+}
+
+-- Rent:
+{
+  "type": "Expense",
+  "title": "June Rent",
+  "amount": 12000,
+  "category": "Rent"
+}
+
+-- Education:
+{
+  "type": "Expense",
+  "title": "Udemy course",
+  "amount": 499,
+  "category": "Education"
+}
+
+-- Healthcare:
+{
+  "type": "Expense",
+  "title": "Pharmacy",
+  "amount": 320,
+  "category": "Healthcare"
+}
+
+-- Entertainment:
+{
+  "type": "Expense",
+  "title": "Netflix subscription",
+  "amount": 649,
+  "category": "Entertainment"
+}
+
+
+================================================================
+  3.  APP.TS MOUNT REFERENCE
+================================================================
+
+import userRoutes        from "./routes/user.routes";
+import transactionRoutes from "./routes/transaction.routes";
+
+app.use("/api/profile",       userRoutes);
+app.use("/api/transactions",  transactionRoutes);
+
+
+================================================================
+  4.  QUICK VALIDATION CHEATSHEET
+================================================================
+
+Missing required field         → 400  { "message": "... are required." }
+Wrong type value               → 400  { "message": "type must be ..." }
+amount <= 0                    → 400  { "message": "amount must be greater than 0." }
+Profile already exists         → 409  { "message": "Profile already completed." }
+Profile not found              → 404  { "message": "Financial profile not found..." }
+Liability not found            → 404  { "message": "Liability not found." }
+Paying a completed liability   → 400  { "message": "This liability has already been completed." }
+No transactions on a date      → 200  { "message": "There are no transactions on that day." }
+Invalid liabilityId format     → 400  { "message": "Invalid liabilityId." }
+No JWT / expired token         → 401  (handled by your auth middleware)
+
+================================================================
